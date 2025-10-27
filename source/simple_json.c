@@ -1,0 +1,673 @@
+/* 
+    TODOLIST:
+    Пока напишу на русском, на англе слишком долго.
+    
+    1. Изменить то, как хранятся токены и в целом весь лексер.
+        a. Перенсти лексер в отдельную структуру данных.
+        b. Вместо использование связанных списков лучше использовать обычный массив.
+        c. Хранить в токенах и лексере информацию о размере, начале токена, конце.
+    
+    2. Заменить malloc на мой аллокатор. Так же хочу замерить бенчмарк для этог всего
+    3. Исправить парсер. Это пока слжоновато будет сделать. Можно оставить так же, но быстренько исправить, чтобы он работало с новым лексером.
+    4. Сделать абстрактный слой для того, чтобы возвращать пользователю библиотеки удобный для использования json_handle
+*/
+
+
+// TODO: Later i need to implment most of crt functions myself.
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <malloc.h>
+#include <ctype.h> 
+#include <stdbool.h>
+#include <assert.h>
+
+#include "simple_json.h"
+
+#define STB_DS_IMPLEMENTATION
+#include "stb_ds.h"
+
+bool StringToBool(char *String)
+{
+    bool Result = false;                        // For safe.
+
+    if(strcmp(String, "true") == 0)
+    {
+        Result = true;
+    }
+    else if(strcmp(String, "false") == 0)
+    {
+        Result = false;
+    }
+
+    return Result;
+}
+
+const char *GetTokenType(token_type Type)
+{
+    const char *Result;
+    switch(Type)
+    {
+        case 0:
+        {
+            Result = "TOKENTYPE_BRACE_OPEN";
+        } break;
+        case 1:
+        {
+            Result = "TOKENTYPE_BRACE_CLOSE";
+        } break;
+        case 2:
+        {
+            Result = "TOKENTYPE_BRACKET_OPEN";
+        } break;
+        case 3:
+        {
+            Result = "TOKENTYPE_BRACKET_CLOSE";
+        } break;
+        case 4:
+        {
+            Result = "TOKENTYPE_STRING";
+        } break;
+        case 5:
+        {
+            Result = "TOKENTYPE_NUMBER";
+        } break;
+        case 6:
+        {
+            Result = "TOKENTYPE_COMMA";
+        } break;
+        case 7:
+        {
+            Result = "TOKENTYPE_COLON";
+        } break;
+        case 8:
+        {
+            Result = "TOKENTYPE_BOOL";
+        } break;
+        case 9:
+        {
+            Result = "TOKENTYPE_NULL";
+        } break;
+        default:
+        {
+            Result = "";
+        }
+    }
+
+    return Result;
+}
+
+void AppendToken(token_list *Tokens, token Token)
+{
+    token *NewToken = (token*)malloc(sizeof(token));
+    *NewToken = Token;
+
+    if(Tokens->Head != 0)
+    {
+        Tokens->Tail->Next = NewToken;
+        Tokens->Tail = NewToken;
+    }
+    else
+    {
+        Tokens->Head = NewToken;
+        Tokens->Tail = NewToken;
+    }
+
+    ++Tokens->Count;
+}
+
+void FreeTokenList(token_list *Tokens)
+{
+    token *Current = Tokens->Head;
+
+    while(Current != 0)
+    {
+        token *NextToken = Current->Next;
+
+        if(Current->Value != 0)
+        {
+            //printf("%s\n", Current->Value);
+            free(Current->Value);
+            Current->Value = 0;
+        }
+
+        free(Current);
+        Current = NextToken;
+    }
+
+    Tokens->Head = 0;
+    Tokens->Tail = 0;
+    Tokens->Count = 0;
+}
+
+// NOTE: For debug
+void PrintTokens(token_list *Tokens) 
+{
+    int TokenIndex = 0;
+    for(token *Current = Tokens->Head; Current != 0; Current = Current->Next)
+    {
+        printf("-----------------\n");
+        printf("Token number %d:\nToken Type = %s\nValue = %s\n", TokenIndex, GetTokenType(Current->Type), Current->Value);
+        printf("-----------------\n");
+        ++TokenIndex;
+    }
+}
+
+char *AppendChar(char *String, char Ch)
+{
+    size_t NewLength = strlen(String)+2;
+    char *Result = (char*)malloc(NewLength);
+    Result[0] = '\0';
+    
+    strncat(Result, String, NewLength-2);
+    strncat(Result, &Ch, 1);
+
+    free(String);
+
+    return Result;
+}
+
+token_list Lexer(char *JsonString)
+{
+    int JsonStringLength = (int)strlen(JsonString);
+    token_list Tokens = {0};
+
+    int CharIndex = 0;
+
+    // TODO: cleanup loop.
+    while(CharIndex < JsonStringLength)
+    {
+        char Ch = JsonString[CharIndex];
+        int TokenIndex = 0;
+
+        if(IsWhitespace(Ch)) 
+        {
+            ++CharIndex;
+            continue;
+        }
+        else if(Ch == '{') 
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup("{");
+            NewToken.Type = TOKENTYPE_BRACE_OPEN;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(Ch == '}') 
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup("}"); 
+            NewToken.Type  = TOKENTYPE_BRACE_CLOSE;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(Ch == '[') 
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup("[");
+            NewToken.Type = TOKENTYPE_BRACKET_OPEN;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(Ch == ']') 
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup("]");
+            NewToken.Type =TOKENTYPE_BRACKET_CLOSE;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(Ch == ':')
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup(":");
+            NewToken.Type = TOKENTYPE_COLON;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(Ch == ',')
+        {
+            token NewToken = {0};
+            NewToken.Value = _strdup(",");
+            NewToken.Type = TOKENTYPE_COMMA;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else if(isdigit(Ch) || Ch == '-')     // If number. We dont increment CharIndexValue, 'cause we need comma token.
+        {
+            char *String = (char*)malloc(1);
+            String[0] = '\0';
+
+            // TODO: collapse it into function.
+            while(isdigit(Ch) && CharIndex < JsonStringLength)
+            {
+                String = AppendChar(String, Ch);
+                ++CharIndex;
+                Ch = JsonString[CharIndex];
+            }
+
+            token NewToken = {0};
+            NewToken.Value = String;
+            NewToken.Type = TOKENTYPE_NUMBER;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+        }
+        else if(Ch == 'n')      // If null. We dont increment CharIndexValue, 'cause we need comma token.
+        {
+            char *String = (char*)malloc(1);
+            String[0] = '\0';
+
+            // TODO: collapse it into function.
+            while(strchr("nul", Ch) && CharIndex < JsonStringLength)
+            {
+                String = AppendChar(String, Ch);
+                ++CharIndex;
+                Ch = JsonString[CharIndex];
+            }
+
+            if(strcmp(String, "null") == 0)
+            {
+                token NewToken = {0};
+                NewToken.Value = String;
+                NewToken.Type = TOKENTYPE_NULL;
+
+                AppendToken(&Tokens, NewToken);
+                ++TokenIndex;
+            }
+            else
+            {
+                free(String);
+            }
+        }
+        else if(Ch == 't' || Ch == 'f')      // If boolean. We dont increment CharIndexValue, 'cause we need comma token.
+        {
+            char *String = (char*)malloc(1);
+            String[0] = '\0';
+
+            // TODO: collapse it into function.
+            while((strchr("true", Ch) || strchr("false", Ch)) && CharIndex < JsonStringLength)
+            {
+                String = AppendChar(String, Ch);
+                ++CharIndex;
+                Ch = JsonString[CharIndex];
+            }
+            if(strcmp(String, "false") == 0 || strcmp(String, "true") == 0)   // NOTE: maybe i should write a macro for strcmp?????
+            {
+                token NewToken = {0};
+                NewToken.Value = String;
+                NewToken.Type = TOKENTYPE_BOOL;
+
+                AppendToken(&Tokens, NewToken);
+                ++TokenIndex;
+            }
+            else
+            {
+                free(String);
+            }
+        }
+        else if(Ch == '"')   // For strings. NOTE: Probablty it will not work with float values, but who use float values in json files.
+        {
+            // TODO: Later check the most performance way to calculate the strings.
+            ++CharIndex;
+            Ch = JsonString[CharIndex];
+
+            char *String = (char*)malloc(1);
+            String[0] = '\0';
+
+            while(CharIndex < JsonStringLength)
+            {
+                // TODO: Maybe rewrite with more accurate way?????
+                if(Ch == '"' && 
+                   CharIndex > 0 &&
+                   JsonString[CharIndex-1] != '\\')
+                {
+                    break;
+                }
+
+                String = AppendChar(String, Ch);
+                ++CharIndex;
+                Ch = JsonString[CharIndex];
+            }
+
+            token NewToken = {0};
+            NewToken.Value = String;
+            NewToken.Type = TOKENTYPE_STRING;
+
+            AppendToken(&Tokens, NewToken);
+            ++TokenIndex;
+            ++CharIndex;
+        }
+        else
+        {
+            // TODO: Log it later.
+            printf("Unexpected character %c", Ch);
+            ++CharIndex;
+            continue;
+        }
+    }
+
+    //PrintTokens(&Tokens);                         // For debug.
+
+    return(Tokens);
+}
+
+ast_node *CreateASTNode(ast_node NewASTNodeData)
+{
+    ast_node *Result = (ast_node*)malloc(sizeof(ast_node));
+    *Result = NewASTNodeData;
+
+    return Result;
+}
+
+ast_node *CreateASTNodeNull()
+{
+    ast_node *Result = (ast_node*)malloc(sizeof(ast_node));
+
+    return Result;
+}
+
+void UpdateToken(token **Token) 
+{
+    if((*Token)->Next)
+    {
+        (*Token) = (*Token)->Next;
+    }
+    else 
+    {
+        (*Token) = 0;
+    }
+}
+
+#if 0
+token *GetNextToken(token *Token)
+{
+    if(Token->Next)
+    {
+        return Token->Next;
+    }
+    else 
+    {
+        return 0;
+    }
+}
+#endif
+
+ast_node *ParseValue(token **Token)
+{
+    // TODO: Collapse this rerturns later.
+    switch((*Token)->Type)
+    {
+        case TOKENTYPE_BRACE_OPEN:
+        {
+            ast_node *NewASTNode = ParseJsonObject(Token);
+
+            return NewASTNode;
+        } break;
+        case TOKENTYPE_BRACKET_OPEN:
+        {
+            ast_node *NewASTNode = ParseJsonArray(Token);
+
+            return NewASTNode;
+        } break;
+        case TOKENTYPE_STRING:
+        {
+            ast_node ResultASTNode = {0};
+            ResultASTNode.Type = ASTNODE_STRING;
+            ResultASTNode.JsonStr = (*Token)->Value;
+            ast_node *NewASTNode = CreateASTNode(ResultASTNode);
+
+            return NewASTNode;
+        } break;
+        case TOKENTYPE_NUMBER:
+        {
+            ast_node ResultASTNode = {0};
+            ResultASTNode.Type = ASTNODE_NUMBER;
+            ResultASTNode.JsonNum = atoi((*Token)->Value);
+            ast_node *NewASTNode = CreateASTNode(ResultASTNode);
+
+            return NewASTNode;
+        } break;
+        case TOKENTYPE_BOOL:
+        {
+            ast_node ResultASTNode = {0};
+            ResultASTNode.Type = ASTNODE_BOOL;
+            ResultASTNode.JsonBool = StringToBool((*Token)->Value);
+            ast_node *NewASTNode = CreateASTNode(ResultASTNode);
+
+            return NewASTNode;
+        } break;
+        case TOKENTYPE_NULL:
+        {
+            ast_node ResultASTNode = {0};
+            ResultASTNode.Type = ASTNODE_NULL;
+            ResultASTNode.JsonNum = 0;           // NULL.
+            ast_node *NewASTNode = CreateASTNode(ResultASTNode);
+
+            return NewASTNode;
+        } break;
+        default:
+        {
+            // TODO: Log later.
+            printf("Unexpected token! %s\n", (*Token)->Value);
+            return 0;
+        }
+    }
+}
+
+ast_node *ParseJsonObject(token **Token)
+{
+    ast_node *Result = CreateASTNodeNull();
+    Result->JsonObj = 0;
+    Result->Type = ASTNODE_OBJECT;
+    UpdateToken(Token);
+
+    while((*Token)->Type != TOKENTYPE_BRACE_CLOSE)
+    {
+        // Get key.
+        if((*Token)->Type == TOKENTYPE_STRING)
+        {
+            char *Key = (*Token)->Value;     // Get the key name and put it into hash table later.
+            UpdateToken(Token);
+
+            if((*Token)->Type != TOKENTYPE_COLON)
+            {
+                // TODO: Log later.
+                assert((*Token)->Type == TOKENTYPE_COLON);
+            }
+
+            UpdateToken(Token);
+
+            ast_node *ValueNode = ParseValue(Token);              // Get the value from current token recursively.
+            shput(Result->JsonObj, Key, ValueNode);           // Continue later.
+        }
+
+        UpdateToken(Token);
+
+        if((*Token)->Type == TOKENTYPE_COMMA) 
+        {
+            UpdateToken(Token);
+        }
+    }
+
+    return Result;
+}
+
+ast_node *ParseJsonArray(token **Token)
+{
+    ast_node *Result = CreateASTNodeNull();
+    Result->JsonArr = 0;
+    Result->Type = ASTNODE_ARRAY;
+    UpdateToken(Token);     // Eat '['
+
+    while((*Token)->Type != TOKENTYPE_BRACKET_CLOSE) 
+    {
+        ast_node *ValueNode = ParseValue(Token);
+        arrput(Result->JsonArr, ValueNode);
+
+        UpdateToken(Token);
+
+        if((*Token)->Type == TOKENTYPE_COMMA) 
+        {
+            UpdateToken(Token);
+        }
+    }
+
+    return Result;
+}
+
+ast_node *Parse(char *String)
+{
+    token_list Tokens = Lexer(String);
+
+    if(Tokens.Count == 0)
+    {
+        // TODO: Log later.
+        printf("Nothing to parse\n");
+    }
+
+    token *Token = Tokens.Head;    // NOTE: Get the first token in the list.
+
+    ast_node *AST = ParseValue(&Token);   // NOTE: Start parsing proccess here.
+
+    return AST;
+}
+
+void PrintValue(ast_node *ASTNode) 
+{
+    switch(ASTNode->Type)
+    {
+        case ASTNODE_OBJECT:
+        {
+            PrintJsonObject(ASTNode);
+        } break;
+        case ASTNODE_ARRAY:
+        {
+            PrintJsonArray(ASTNode);
+        } break;
+        case ASTNODE_STRING:
+        {
+            printf("%s\n", ASTNode->JsonStr);
+        } break;
+        case ASTNODE_NUMBER:
+        {
+            printf("%d\n", ASTNode->JsonNum);
+        } break;
+        case ASTNODE_BOOL:
+        {
+            printf("%d\n", ASTNode->JsonBool);
+        } break;
+        case ASTNODE_NULL:
+        {
+            printf("%d\n", ASTNode->JsonNum);
+        } break;
+        default:
+        {
+        }
+    }
+}
+
+void PrintJsonArray(ast_node *ASTNode)
+{
+    for(int index = 0; index < arrlen(ASTNode->JsonArr); index++)
+    {
+        PrintValue(ASTNode->JsonArr[index]);
+    }
+}
+
+void PrintJsonObject(ast_node *ASTNode) 
+{
+    for(int index = 0; index < hmlen(ASTNode->JsonObj); index++) 
+    {
+        PrintValue(ASTNode->JsonObj[index].value);
+    }
+}
+
+void PrintJsonAST(ast_node *AST)
+{
+    PrintValue(AST);
+}
+
+void FreeJsonObject(ast_node **ASTNodePtr)
+{
+    if(ASTNodePtr != 0 && *ASTNodePtr != 0)
+    {
+        // Loop through the hash table and free all nodes.
+        for(int index = 0; index < shlen((*ASTNodePtr)->JsonObj); index++)
+        {
+//            FreeJsonString(&((*ASTNodePtr)->JsonObj[index].key));
+            FreeASTNode(&((*ASTNodePtr)->JsonObj[index].value));
+        }
+
+        shfree((*ASTNodePtr)->JsonObj);
+        (*ASTNodePtr)->JsonObj = 0;
+        *ASTNodePtr = 0;
+    }
+}
+
+void FreeJsonArray(ast_node **ASTNodePtr)
+{
+    if(ASTNodePtr != 0 && *ASTNodePtr != 0)
+    {
+        for(int index = 0; index < arrlen((*ASTNodePtr)->JsonArr); index++)
+        {
+            FreeASTNode(&((*ASTNodePtr)->JsonArr[index]));
+        }
+
+        arrfree((*ASTNodePtr)->JsonArr);
+        (*ASTNodePtr)->JsonArr = 0;
+        *ASTNodePtr = 0;
+    }
+}
+
+// FreeTokenList() function free's all dynamic strings anyway, 
+// so, this function just causes erreos anyway.
+/*
+void FreeJsonString(char **JsonStringPtr)
+{
+    if (JsonStringPtr != 0 && *JsonStringPtr != 0)
+    {
+        free(*(JsonStringPtr));
+        *JsonStringPtr = 0;
+    }
+}
+*/
+
+void FreeASTNode(ast_node **ASTNodePtr)
+{
+    switch((*ASTNodePtr)->Type)
+    {
+        case ASTNODE_OBJECT:
+        {
+            FreeJsonObject(ASTNodePtr);
+        } break;
+        case ASTNODE_ARRAY:
+        {
+            FreeJsonArray(ASTNodePtr);
+        } break;
+        default:
+        {
+        }
+    }
+
+    free(*ASTNodePtr);
+    *ASTNodePtr = 0;
+}
+
+void FreeJsonASTRecursively(ast_node *AST)
+{
+    // TODO: I dont know how to free token wors. If it's one memory block, i need to deccomit ASTFreeJsonString function.
+    FreeASTNode(&AST);
+}

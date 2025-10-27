@@ -1,0 +1,29 @@
+{
+    "object":"chat.completion",
+    "id":"",
+    "created":1732634317,
+    "model":"meta-llama/Meta-Llama-3-8B-Instruct",
+    "system_fingerprint":"2.3.1-dev0-sha-169178b",
+
+    "choices":
+    [
+        {
+            "index":0,
+            "message":
+            {
+                "role":"assistant",
+                "content":"Ку, брат! Вот анекдот для тебя:\n\nДавным-давно умерла женщина, а в преисподней она столкнулась с Богом.\n\nБог тут, какusually, начал разговаривать с ней: \"Дочитъ, ты Supplier Preview, ты проживала 70 лет? Положима?\"\n\nЖенщина: \"Нет, Господи! Я жила только 60 лет! Но я пила очень чистую воду!\"\n\nБог: \"А что ты пила?\"\n\nЖенщина: \" Para-Pure!\"\n\nБог: \" Para-Pure?! cheap!\"\n\n( translation: \"Ah, brother, here's an anecdote for you:\n\nLong ago, a woman died and ran into God in the afterlife.\n\nGod starts talking to her, as usual, asking: \"Daughter, you lived 70 years? Justifiable?\"\n\nWoman: \"No, Lord! I lived only 60 years! But I drank very pure water!\"\n\nGod: \"And what did you drink?\"\n\nWoman: \"Para-Pure!\"\n\nGod: \"Para-Pure?! Cheap!\"\n\n Moral of the story: Don't drink too much purified water, as it's cheap and won't make you live longer!)"
+            },
+
+            "logprobs":null,
+            "finish_reason":"stop"
+        }
+    ],
+
+    "usage":
+    {
+        "prompt_tokens":24,
+        "completion_tokens":259,
+        "total_tokens":283
+    }
+}
