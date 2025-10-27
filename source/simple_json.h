@@ -48,27 +48,26 @@ typedef enum
 
 typedef struct json_object
 {
-    // JSON Object. TODO: Now I use a stb lib. In future it must be my hash map.
+    // TODO: While i do not have my own hash map, i using stb one here.
     char *key;
     struct ast_node *value;
 
 } json_object;
 
-// TODO: Implement later.
 typedef struct ast_node
 {
     ast_node_type Type;
 
     // TODO: In c++ you can not write anonymous structures or unions with name.
     // So, for copabilites compatibility i write it more unreadeble ):
-    union               // This union is value of ast_node.
+    // This union is value of ast_node.
+    union
     {
         json_object *JsonObj;
-        struct ast_node **JsonArr;        // TODO: maybe later if should change it to my own dynamic array.
+        struct ast_node **JsonArr;        // TODO: Implement my own dynamic array, or just use the arena.
         char *JsonStr;
         int JsonNum;
         bool JsonBool;
-        // I dont need field for null.
     };
 
 } ast_node;
@@ -87,7 +86,7 @@ token *GetNextToken(token **Token);
 ast_node *ParseValue(token **Token);
 ast_node *ParseJsonObject(token **Token);
 ast_node *ParseJsonArray(token **Token);
-ast_node *Parse(char *String);         // TODO: add returning value later.
+ast_node *Parse(char *String);
 
 void FreeASTNode(ast_node **ASTNodePtr);
 void FreeJsonObject(ast_node **ASTNodePtr);

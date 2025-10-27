@@ -1,24 +1,21 @@
 /* 
     TODOLIST:
-    Пока напишу на русском, на англе слишком долго.
-    
     1. Изменить то, как хранятся токены и в целом весь лексер.
-        a. Перенсти лексер в отдельную структуру данных.
-        b. Вместо использование связанных списков лучше использовать обычный массив.
-        c. Хранить в токенах и лексере информацию о размере, начале токена, конце.
-    
-    2. Заменить malloc на мой аллокатор. Так же хочу замерить бенчмарк для этог всего
-    3. Исправить парсер. Это пока слжоновато будет сделать. Можно оставить так же, но быстренько исправить, чтобы он работало с новым лексером.
-    4. Сделать абстрактный слой для того, чтобы возвращать пользователю библиотеки удобный для использования json_handle
+    1. Change lexer(tokenaizer). Change how they live in programm.
+        a. Move lexer to separte data structure.
+        b. Change linked list to the basic array('cause we dont that pointers mess).
+        c. Store in tokens metadata about size, head and tail of token.
+    2. Change malloc to my own allocator.
+    4. Write a some wrap for json handler. 'Cause now it's not something, that someone liked to work with
 */
 
-
-// TODO: Later i need to implment most of crt functions myself.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <malloc.h>
 #include <ctype.h> 
+
+// TODO: need to be replaced.
+#include <malloc.h>            
 #include <stdbool.h>
 #include <assert.h>
 
@@ -170,7 +167,7 @@ char *AppendChar(char *String, char Ch)
 token_list Lexer(char *JsonString)
 {
     int JsonStringLength = (int)strlen(JsonString);
-    token_list Tokens = {0};
+    token_list Tokens = {};
 
     int CharIndex = 0;
 
@@ -178,7 +175,7 @@ token_list Lexer(char *JsonString)
     while(CharIndex < JsonStringLength)
     {
         char Ch = JsonString[CharIndex];
-        int TokenIndex = 0;
+        //int TokenIndex = 0;
 
         if(IsWhitespace(Ch)) 
         {
@@ -187,62 +184,62 @@ token_list Lexer(char *JsonString)
         }
         else if(Ch == '{') 
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup("{");
+            token NewToken = {};
+            NewToken.Value = strdup("{");
             NewToken.Type = TOKENTYPE_BRACE_OPEN;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(Ch == '}') 
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup("}"); 
+            token NewToken = {};
+            NewToken.Value = strdup("}"); 
             NewToken.Type  = TOKENTYPE_BRACE_CLOSE;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(Ch == '[') 
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup("[");
+            token NewToken = {};
+            NewToken.Value = strdup("[");
             NewToken.Type = TOKENTYPE_BRACKET_OPEN;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(Ch == ']') 
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup("]");
+            token NewToken = {};
+            NewToken.Value = strdup("]");
             NewToken.Type =TOKENTYPE_BRACKET_CLOSE;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(Ch == ':')
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup(":");
+            token NewToken = {};
+            NewToken.Value = strdup(":");
             NewToken.Type = TOKENTYPE_COLON;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(Ch == ',')
         {
-            token NewToken = {0};
-            NewToken.Value = _strdup(",");
+            token NewToken = {};
+            NewToken.Value = strdup(",");
             NewToken.Type = TOKENTYPE_COMMA;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else if(isdigit(Ch) || Ch == '-')     // If number. We dont increment CharIndexValue, 'cause we need comma token.
@@ -258,12 +255,12 @@ token_list Lexer(char *JsonString)
                 Ch = JsonString[CharIndex];
             }
 
-            token NewToken = {0};
+            token NewToken = {};
             NewToken.Value = String;
             NewToken.Type = TOKENTYPE_NUMBER;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
         }
         else if(Ch == 'n')      // If null. We dont increment CharIndexValue, 'cause we need comma token.
         {
@@ -280,12 +277,12 @@ token_list Lexer(char *JsonString)
 
             if(strcmp(String, "null") == 0)
             {
-                token NewToken = {0};
+                token NewToken = {};
                 NewToken.Value = String;
                 NewToken.Type = TOKENTYPE_NULL;
 
                 AppendToken(&Tokens, NewToken);
-                ++TokenIndex;
+                //++TokenIndex;
             }
             else
             {
@@ -306,21 +303,21 @@ token_list Lexer(char *JsonString)
             }
             if(strcmp(String, "false") == 0 || strcmp(String, "true") == 0)   // NOTE: maybe i should write a macro for strcmp?????
             {
-                token NewToken = {0};
+                token NewToken = {};
                 NewToken.Value = String;
                 NewToken.Type = TOKENTYPE_BOOL;
 
                 AppendToken(&Tokens, NewToken);
-                ++TokenIndex;
+                //++TokenIndex;
             }
             else
             {
                 free(String);
             }
         }
-        else if(Ch == '"')   // For strings. NOTE: Probablty it will not work with float values, but who use float values in json files.
+        else if(Ch == '"')   
         {
-            // TODO: Later check the most performance way to calculate the strings.
+            // Change the string parsing logic.
             ++CharIndex;
             Ch = JsonString[CharIndex];
 
@@ -329,7 +326,7 @@ token_list Lexer(char *JsonString)
 
             while(CharIndex < JsonStringLength)
             {
-                // TODO: Maybe rewrite with more accurate way?????
+                // TODO: Rewrite!!!
                 if(Ch == '"' && 
                    CharIndex > 0 &&
                    JsonString[CharIndex-1] != '\\')
@@ -342,12 +339,12 @@ token_list Lexer(char *JsonString)
                 Ch = JsonString[CharIndex];
             }
 
-            token NewToken = {0};
+            token NewToken = {};
             NewToken.Value = String;
             NewToken.Type = TOKENTYPE_STRING;
 
             AppendToken(&Tokens, NewToken);
-            ++TokenIndex;
+            //++TokenIndex;
             ++CharIndex;
         }
         else
@@ -424,7 +421,7 @@ ast_node *ParseValue(token **Token)
         } break;
         case TOKENTYPE_STRING:
         {
-            ast_node ResultASTNode = {0};
+            ast_node ResultASTNode = {};
             ResultASTNode.Type = ASTNODE_STRING;
             ResultASTNode.JsonStr = (*Token)->Value;
             ast_node *NewASTNode = CreateASTNode(ResultASTNode);
@@ -433,7 +430,7 @@ ast_node *ParseValue(token **Token)
         } break;
         case TOKENTYPE_NUMBER:
         {
-            ast_node ResultASTNode = {0};
+            ast_node ResultASTNode = {};
             ResultASTNode.Type = ASTNODE_NUMBER;
             ResultASTNode.JsonNum = atoi((*Token)->Value);
             ast_node *NewASTNode = CreateASTNode(ResultASTNode);
@@ -442,7 +439,7 @@ ast_node *ParseValue(token **Token)
         } break;
         case TOKENTYPE_BOOL:
         {
-            ast_node ResultASTNode = {0};
+            ast_node ResultASTNode = {};
             ResultASTNode.Type = ASTNODE_BOOL;
             ResultASTNode.JsonBool = StringToBool((*Token)->Value);
             ast_node *NewASTNode = CreateASTNode(ResultASTNode);
@@ -451,7 +448,7 @@ ast_node *ParseValue(token **Token)
         } break;
         case TOKENTYPE_NULL:
         {
-            ast_node ResultASTNode = {0};
+            ast_node ResultASTNode = {};
             ResultASTNode.Type = ASTNODE_NULL;
             ResultASTNode.JsonNum = 0;           // NULL.
             ast_node *NewASTNode = CreateASTNode(ResultASTNode);
@@ -668,6 +665,6 @@ void FreeASTNode(ast_node **ASTNodePtr)
 
 void FreeJsonASTRecursively(ast_node *AST)
 {
-    // TODO: I dont know how to free token wors. If it's one memory block, i need to deccomit ASTFreeJsonString function.
+    // TODO: Rewrite it when i start using my allocator here.
     FreeASTNode(&AST);
 }
