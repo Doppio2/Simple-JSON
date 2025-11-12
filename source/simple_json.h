@@ -1,5 +1,7 @@
 #if !defined(_SIMPLE_JSON_H)
 
+#include "arena_allocator.h"
+
 #define ArrayCount(Array) (sizeof(*Array) / sizeof((Array)[0]))
 
 #define IsWhitespace(Ch) (Ch == ' ' || Ch == '\n' || Ch == '\r' || Ch == '\t')
@@ -73,12 +75,13 @@ typedef struct ast_node
 } ast_node;
 
 /*                  For tokens                     */
+// TODO: rename it to convention: ObjName-Operation like.
 const char *GetTokenType(token_type Type);
-void AppendToken(token_list *Tokens, token Token);
-void FreeTokenList(token_list *Tokens);
+void AppendToken(token_list *Tokens, token Token, arena *TokensArena);
+void FreeTokenList(token_list *Tokens, arena *TokensArena);
 void PrintTokens(token_list *Tokens);                  // For debug.
 
-token_list Lexer(char *JsonString);
+token_list Lexer(char *JsonString, arena *TokensArena);
 
 ast_node *CreateASTNode(ast_node NewASTNodeData);
 

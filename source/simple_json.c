@@ -20,6 +20,10 @@
 #include <assert.h>
 
 #include "simple_json.h"
+#include "arena_allocator.h"
+
+#include "arena_allocator.c"
+
 
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
@@ -94,9 +98,9 @@ const char *GetTokenType(token_type Type)
     return Result;
 }
 
-void AppendToken(token_list *Tokens, token Token)
+void AppendToken(token_list *Tokens, token Token, arena *Arena)
 {
-    token *NewToken = (token*)malloc(sizeof(token));
+    token *NewToken = PushStruct(Arena, token); // (token*)malloc(sizeof(token));
     *NewToken = Token;
 
     if(Tokens->Head != 0)
@@ -113,28 +117,14 @@ void AppendToken(token_list *Tokens, token Token)
     ++Tokens->Count;
 }
 
-void FreeTokenList(token_list *Tokens)
+void FreeTokenList(token_list *Tokens, arena *TokensArena)
 {
-    token *Current = Tokens->Head;
-
-    while(Current != 0)
-    {
-        token *NextToken = Current->Next;
-
-        if(Current->Value != 0)
-        {
-            //printf("%s\n", Current->Value);
-            free(Current->Value);
-            Current->Value = 0;
-        }
-
-        free(Current);
-        Current = NextToken;
-    }
-
     Tokens->Head = 0;
     Tokens->Tail = 0;
     Tokens->Count = 0;
+    // NOTE: Should i use ArenaClear first?
+    //ArenaClear(TokensArena);
+    ArenaFree(TokensArena);
 }
 
 // NOTE: For debug
@@ -150,6 +140,7 @@ void PrintTokens(token_list *Tokens)
     }
 }
 
+// TODO: This function need to use ArenaAllocator instead malloc.
 char *AppendChar(char *String, char Ch)
 {
     size_t NewLength = strlen(String)+2;
@@ -164,7 +155,7 @@ char *AppendChar(char *String, char Ch)
     return Result;
 }
 
-token_list Lexer(char *JsonString)
+token_list Lexer(char *JsonString, arena *TokensArena)
 {
     int JsonStringLength = (int)strlen(JsonString);
     token_list Tokens = {};
@@ -175,7 +166,6 @@ token_list Lexer(char *JsonString)
     while(CharIndex < JsonStringLength)
     {
         char Ch = JsonString[CharIndex];
-        //int TokenIndex = 0;
 
         if(IsWhitespace(Ch)) 
         {
@@ -188,8 +178,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup("{");
             NewToken.Type = TOKENTYPE_BRACE_OPEN;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(Ch == '}') 
@@ -198,8 +187,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup("}"); 
             NewToken.Type  = TOKENTYPE_BRACE_CLOSE;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(Ch == '[') 
@@ -208,8 +196,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup("[");
             NewToken.Type = TOKENTYPE_BRACKET_OPEN;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(Ch == ']') 
@@ -218,8 +205,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup("]");
             NewToken.Type =TOKENTYPE_BRACKET_CLOSE;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(Ch == ':')
@@ -228,8 +214,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup(":");
             NewToken.Type = TOKENTYPE_COLON;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(Ch == ',')
@@ -238,8 +223,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = strdup(",");
             NewToken.Type = TOKENTYPE_COMMA;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else if(isdigit(Ch) || Ch == '-')     // If number. We dont increment CharIndexValue, 'cause we need comma token.
@@ -259,8 +243,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = String;
             NewToken.Type = TOKENTYPE_NUMBER;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
         }
         else if(Ch == 'n')      // If null. We dont increment CharIndexValue, 'cause we need comma token.
         {
@@ -281,8 +264,7 @@ token_list Lexer(char *JsonString)
                 NewToken.Value = String;
                 NewToken.Type = TOKENTYPE_NULL;
 
-                AppendToken(&Tokens, NewToken);
-                //++TokenIndex;
+                AppendToken(&Tokens, NewToken, TokensArena);
             }
             else
             {
@@ -307,8 +289,7 @@ token_list Lexer(char *JsonString)
                 NewToken.Value = String;
                 NewToken.Type = TOKENTYPE_BOOL;
 
-                AppendToken(&Tokens, NewToken);
-                //++TokenIndex;
+                AppendToken(&Tokens, NewToken, TokensArena);
             }
             else
             {
@@ -343,8 +324,7 @@ token_list Lexer(char *JsonString)
             NewToken.Value = String;
             NewToken.Type = TOKENTYPE_STRING;
 
-            AppendToken(&Tokens, NewToken);
-            //++TokenIndex;
+            AppendToken(&Tokens, NewToken, TokensArena);
             ++CharIndex;
         }
         else
@@ -387,20 +367,6 @@ void UpdateToken(token **Token)
         (*Token) = 0;
     }
 }
-
-#if 0
-token *GetNextToken(token *Token)
-{
-    if(Token->Next)
-    {
-        return Token->Next;
-    }
-    else 
-    {
-        return 0;
-    }
-}
-#endif
 
 ast_node *ParseValue(token **Token)
 {
@@ -527,7 +493,9 @@ ast_node *ParseJsonArray(token **Token)
 
 ast_node *Parse(char *String)
 {
-    token_list Tokens = Lexer(String);
+    arena *TokensArena = ArenaAlloc(ArenaDefaultSize);
+
+    token_list Tokens = Lexer(String, TokensArena);
 
     if(Tokens.Count == 0)
     {

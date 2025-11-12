@@ -10,7 +10,7 @@ int main() {
             "\"messages\": ["
             "    {"
             "        \"role\": \"user\","
-            "        \"content\": \"Ку, брат, расскажи мне анекдот!!.\""
+            "        \"content\": \"Hello! Tell me a story!.\""
             "    }"
             "],"
             "\"max_tokens\": 500,"
@@ -19,11 +19,9 @@ int main() {
 
     ast_node *AST = Parse(JsonString);
 
-    if(AST == NULL)
-    {
-        printf("NE RABOTAET!\n");
-        return 1;
-    }
+    ast_node *ModelName = shget(AST->JsonObj, "model");
+
+    printf("%s", ModelName->JsonStr);
 
     FreeJsonASTRecursively(AST);
 
